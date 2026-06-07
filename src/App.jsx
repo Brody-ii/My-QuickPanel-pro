@@ -1,13 +1,13 @@
 /**
- * QuickPanel Pro – v8
+ * QuickPanel Pro – v11
  * تطبيق تعديل الكويك بانيل لهواتف سامسونج
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import localforage from "localforage";
+import { createPortal } from "react-dom";
 
-
-// ── أيقونات SVG — كل أيقونة دالة مستقلة ترجع SVG جاهز للاستخدام ─────────────
+// ── أيقونات SVG ─────────────────────────────
 const SVGIcons = {
   Home: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
   Settings: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
@@ -23,9 +23,71 @@ const SVGIcons = {
   Sun: () => <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
   Crop: () => <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"/></svg>,
   Sparkle: () => <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+  Info: () => <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
 };
 
-// ── قائمة أسماء ملفات الأيقونات — كلها موجودة في مجلد /icons ─────────────────
+// ── المكون الجديد TooltipButton ──────────────────────────
+function TooltipButton({ text, top, right, bottom, left }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) document.addEventListener("click", handleOutsideClick);
+    return () => document.removeEventListener("click", handleOutsideClick);
+  }, [isOpen]);
+
+  // حساب موقع الزر
+  const rect = containerRef.current?.getBoundingClientRect();
+
+  return (
+    <div ref={containerRef} style={{ position: "absolute", top, right, bottom, left, zIndex: 9000 }}>
+      <button 
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        style={{
+          width: 26, height: 26, borderRadius: "50%",
+          background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+          backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", color: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+          transition: "all 0.2s ease"
+        }}
+      >
+        <SVGIcons.Info />
+      </button>
+
+      {isOpen && rect && createPortal(
+        <div style={{
+          position: "fixed", 
+          // حساب الموقع: تبدأ بجانب الزر، وتمنع تجاوز الحواف
+          top: Math.min(Math.max(rect.top + 30, 20), window.innerHeight - 150),
+          left: Math.min(Math.max(rect.left - 120, 20), window.innerWidth - 300),
+          background: "rgba(20,22,28,0.95)", 
+          backdropFilter: "blur(24px) saturate(1.5)", 
+          WebkitBackdropFilter: "blur(24px) saturate(1.5)",
+          border: "1px solid rgba(255,255,255,0.1)", 
+          borderRadius: 16, padding: "12px 18px", 
+          color: "#fff", fontSize: 13, fontWeight: 500,
+          width: "240px",
+          textAlign: "center",
+          boxShadow: "0 15px 40px rgba(0,0,0,0.5)",
+          // أنيميشن سلس (توسع وتلاشي)
+          animation: "popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+          zIndex: 99999
+        }}>
+          {text}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// ── باقي الكود (INITIAL_LAYOUT, ICONS, etc...) ──────────────────────────
 const ICONS = [
   "Always_On_Display.png","Audio_broadcast.png","Battery_protection.png",
   "Bluetooth_hearing_aids.png","bluetooth.png","Call_and_text_on_other_devices.png",
@@ -44,7 +106,6 @@ const ICONS = [
   "Wireless_DeX.png","Wireless_power_sharing.png","smart_things.png",
 ];
 
-// ── الترتيب الافتراضي للكبسولات عند فتح مشروع جديد ──────────────────────────
 const INITIAL_LAYOUT = [
   { id:"1",  col:1, colSpan:2, row:1, rowSpan:1, icon:"wifi.png",           label:"Wi-Fi" },
   { id:"2",  col:3, colSpan:2, row:1, rowSpan:1, icon:"bluetooth.png",       label:"البلوتوث" },
@@ -58,17 +119,14 @@ const INITIAL_LAYOUT = [
   { id:"10", col:3, colSpan:2, row:8, rowSpan:1, icon:"smart_things.png",    label:"SmartThings" },
 ];
 
-// ── ثوابت الشبكة — عدد الأعمدة وحجم كل خلية والمسافة بينها ──────────────────
 const COLS            = 4;
 const CELL_EX         = 100;
 const GAP_EX          = 12;
-const LONG_PRESS_MS   = 400;   // مدة الضغط الطويل بالمليثانية
-const LONG_PRESS_MOVE = 8;     // أقصى حركة مسموحة قبل إلغاء الضغط الطويل
+const LONG_PRESS_MS   = 400;
+const LONG_PRESS_MOVE = 8;
 
-// ── دالة مساعدة — تحول اسم الملف إلى نص قابل للقراءة ────────────────────────
 const iconLabel = (n) => (n ? n.replace(/\.png$/i, "").replace(/_/g, " ") : "");
 
-// ── ألوان وأنماط الثيمات الداكن والفاتح ──────────────────────────────────────
 const THEMES = {
   dark: {
     bg: "linear-gradient(145deg, #0e0c0a 0%, #17110e 40%, #1a1208 70%, #0f0e14 100%)",
@@ -110,7 +168,6 @@ const THEMES = {
   },
 };
 
-// ── نصوص الواجهة — عربي وإنجليزي ────────────────────────────────────────────
 const TEXTS = {
   ar: {
     title:"مُعـدّل الكويك بانيل", desc:"صُمم خصيصاً لقص وتنسيق صورك لِتتطابق مع واجهة اللوحة السريعة",
@@ -120,7 +177,7 @@ const TEXTS = {
     exportBtn:"تصدير وتحميل الصور (ZIP)", exporting:"جاري المعالجة...",
     exportWarn:"أقفل وضع التعديل لتمكين التصدير",
     tabHome:"الرئيسية", tabSettings:"الإعدادات", settings:"الإعدادات",
-    lang:"اللغة (Language)", themeMode:"المظهر (Theme)", dark:"داكن", light:"فاتح",
+    lang:"(Language) اللغة", themeMode:"المظهر", dark:"داكن", light:"فاتح",
     devCredit:"تطوير: إبراهيم (براودي)", rights:"جميع الحقوق محفوظة ©Ibrahim AL-adwani 2026",
     modalTitle:"تعديل الزر", searchIcon:"ابحث عن أيقونة...", chooseIcon:"اختر أيقونة:",
     noIcon:"بدون أيقونة", noResult:"لا توجد نتائج", labelOpt:"النص (اختياري):",
@@ -134,7 +191,9 @@ const TEXTS = {
     deleteConfirm:"تم الحذف",
     cropBtn:"قص الصورة", cropTitle:"اقتصاص الصورة", cropApply:"اعتماد القص",
     Email:":ايميل التواصل" , Twetter:":تويتر او (اكس)" , Instagram:":انستقرام" , contact:":للتواصل او الابلاغ",
-    telgram:":قروب التيليجرام", 
+    telgram:":قروب التيليجرام", langinfo:"اختر لغة التطبيق", themeinfo:"اختر مظهر التطبيق",
+    uploadinfo: "ارفع صورة خلفيتك لبدئ مشروع جديد", brojectinfo:"اختر من مشاريعك السابقة لتقوم بتعديله او اعادة استرياده",
+    resizeImage: "اختر صورة جديدة وغير ضبابية الكبسولات اذا اردت.", editInfo:"اضغط لتبديل وضع التعديل — في هذا الوضع يمكنك تحريك وتغيير حجم الكبسولات، اضغط مطولاً على أي كبسولة لتحريكها، واسحب الزاوية لتكبيرها أو تصغيرها."
   },
   en: {
     title:"QuickPanel Editor", desc:"Designed to crop and arrange your images to perfectly match the Quick Panel",
@@ -144,7 +203,7 @@ const TEXTS = {
     exportBtn:"Download All as ZIP", exporting:"Processing...",
     exportWarn:"Close Edit Mode to Export",
     tabHome:"Home", tabSettings:"Settings", settings:"Settings",
-    lang:"Language", themeMode:"Theme", dark:"Dark", light:"Light",
+    lang:"Language (اللغة)", themeMode:"Theme", dark:"Dark", light:"Light",
     devCredit:"Developed by: Ibrahim (Brody)", rights:"All rights reserved ©Ibrahim AL-adwani 2026",
     modalTitle:"Edit Button", searchIcon:"Search icon...", chooseIcon:"Choose icon:",
     noIcon:"No icon", noResult:"No results", labelOpt:"Label (optional):",
@@ -158,12 +217,13 @@ const TEXTS = {
     deleteConfirm:"Deleted",
     cropBtn:"Crop Image", cropTitle:"Crop Image", cropApply:"Apply Crop",
     Email:"Contact Email:" , Twetter:"Twitter or (X):" , Instagram:"Instagram:" , contact:"For contact or reporting:",
-    telgram:"Telegram Group:",
+    telgram:"Telegram Group:", langinfo:"Choose the application language", themeinfo:"Choose the application theme",
+    uploadinfo:"Upload your background image to start a new project", brojectinfo:"Select from your previous projects to edit or re-export",
+    resizeImage:"Choose a new image and make the buttons blurry if you want.",
+    editInfo:"Press to toggle edit mode — in this mode you can move and resize the buttons, long-press any button to move it, and drag the corners to scale it."
   },
 };
 
-// ── دالة حل التداخل بين الكبسولات — تشتغل كل ما يتحرك عنصر ─────────────────
-// تمشي على كل زوج من العناصر وإذا تداخلوا تحرك الأخف لتحت
 function resolveCollisions(layout, activeId) {
   const lay = layout.map((i) => ({ ...i }));
   let changed = true, guard = 0;
@@ -192,14 +252,12 @@ function resolveCollisions(layout, activeId) {
   return lay;
 }
 
-// ── دوال حساب حجم الشبكة الكلي ──────────────────────────────────────────────
 const getMaxRow = (layout) => layout.reduce((m, i) => Math.max(m, i.row + i.rowSpan - 1), 1);
 const calcSize  = (layout) => {
   const maxRow = getMaxRow(layout);
   return { totalW: COLS * CELL_EX + (COLS + 1) * GAP_EX, totalH: maxRow * CELL_EX + (maxRow + 1) * GAP_EX, maxRow };
 };
 
-// ── تحميل صورة الأيقونة من المجلد المحلي — ترجع Promise بالصورة ──────────────
 function loadIconImage(src) {
   return new Promise((res) => {
     if (!src) return res(null);
@@ -211,7 +269,6 @@ function loadIconImage(src) {
   });
 }
 
-// ── تصغير الصورة عند الرفع إذا كانت أكبر من 2400 بكسل — يخفف الثقل ──────────
 function resizeImageIfNeeded(dataUrl, maxSize = 2400) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -231,9 +288,8 @@ function resizeImageIfNeeded(dataUrl, maxSize = 2400) {
   });
 }
 
-// ── رسم كبسولة واحدة على Canvas جاهز للتصدير — يرجع canvas element ──────────
 async function renderItemCanvas(item, bgImg, totalW, totalH, visualStyle) {
-  const SCALE = 3; // دقة التصدير — 3x للحصول على صورة واضحة
+  const SCALE = 3; 
   const x = GAP_EX + (item.col - 1) * (CELL_EX + GAP_EX);
   const y = GAP_EX + (item.row - 1) * (CELL_EX + GAP_EX);
   const w = item.colSpan * CELL_EX + (item.colSpan - 1) * GAP_EX;
@@ -244,7 +300,6 @@ async function renderItemCanvas(item, bgImg, totalW, totalH, visualStyle) {
   const ctx = cv.getContext("2d");
   ctx.scale(SCALE, SCALE);
 
-  // تحديد شكل الكبسولة — دائرة أو حبة دواء أو مربع
   const isCircle = item.colSpan === 1 && item.rowSpan === 1;
   const isPill   = (item.colSpan >= 2 && item.rowSpan === 1) || (item.colSpan === 1 && item.rowSpan >= 2);
   const radius   = isCircle ? w / 2 : isPill ? Math.min(w, h) / 2 : 22;
@@ -257,7 +312,6 @@ async function renderItemCanvas(item, bgImg, totalW, totalH, visualStyle) {
 
   if (visualStyle === "blurred") ctx.filter = "blur(15px)";
 
-  // قص الجزء الصح من الصورة الخلفية حسب موضع الكبسولة
   const ir = bgImg.width / bgImg.height, pr = totalW / totalH;
   let dw = bgImg.width, dh = bgImg.height, ox = 0, oy = 0;
   if (ir > pr) { dw = bgImg.height * pr; ox = (bgImg.width - dw) / 2; }
@@ -267,7 +321,6 @@ async function renderItemCanvas(item, bgImg, totalW, totalH, visualStyle) {
   ctx.drawImage(bgImg, ox + x * sx, oy + y * sy, w * sx, h * sy, -offset, -offset, w + offset * 2, h + offset * 2);
   ctx.filter = "none";
 
-  // إضافة طبقة شفافية فوق الصورة حسب النمط المختار
   if (visualStyle === "blurred") {
     ctx.fillStyle = "rgba(22,20,18,0.50)"; ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = "rgba(0,0,0,0.12)";   ctx.fillRect(0, 0, w, h);
@@ -280,7 +333,6 @@ async function renderItemCanvas(item, bgImg, totalW, totalH, visualStyle) {
   const iconImg = item.icon ? await loadIconImage(item.icon) : null;
   const setShadow = () => { ctx.shadowColor = "rgba(0,0,0,0.85)"; ctx.shadowBlur = 7; };
 
-  // رسم الأيقونة والنص حسب نوع الكبسولة
   if (item.colSpan >= 2 && item.rowSpan >= 2) {
     const s = w * 0.25, cx = w / 2, cy = h / 2;
     if (iconImg) { const iy = item.label ? cy - s / 2 - 10 : cy - s / 2; ctx.drawImage(iconImg, cx - s / 2, iy, s, s); }
@@ -300,7 +352,6 @@ async function renderItemCanvas(item, bgImg, totalW, totalH, visualStyle) {
   }
   ctx.restore();
 
-  // إضافة حد أبيض للكبسولات الشفافة
   if (visualStyle === "transparent") {
     ctx.save(); ctx.beginPath();
     if (isCircle) ctx.arc(w / 2, h / 2, w / 2 - 1.5, 0, Math.PI * 2);
@@ -310,7 +361,6 @@ async function renderItemCanvas(item, bgImg, totalW, totalH, visualStyle) {
   return cv;
 }
 
-// ── تصدير كل الكبسولات داخل ملف ZIP واحد ────────────────────────────────────
 async function exportAllAsZip(layout, bgImg, visualStyle) {
   let JSZip;
   try { JSZip = (await import("jszip")).default; }
@@ -324,7 +374,6 @@ async function exportAllAsZip(layout, bgImg, visualStyle) {
     zip.file(name, b64, { base64: true });
   }
   const b64zip = await zip.generateAsync({ type: "base64" });
-  // محاولة استخدام Capacitor للحفظ على الجهاز — يشتغل فقط داخل APK
   try {
     const { Filesystem, Directory } = await import("@capacitor/filesystem");
     const { Share } = await import("@capacitor/share");
@@ -333,7 +382,6 @@ async function exportAllAsZip(layout, bgImg, visualStyle) {
     await Share.share({ title: "QuickPanel Widgets", url: fileUri.uri, dialogTitle: "Save ZIP" });
     return;
   } catch (_) {}
-  // fallback للمتصفح العادي إذا ما كان Capacitor موجود
   const byteChars = atob(b64zip), bytes = new Uint8Array(byteChars.length);
   for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
   const blob = new Blob([bytes], { type: "application/zip" });
@@ -344,7 +392,6 @@ async function exportAllAsZip(layout, bgImg, visualStyle) {
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 3000);
 }
 
-// ── محتوى الكبسولة — يعرض الأيقونة والنص حسب شكلها ─────────────────────────
 function ItemContent({ item, visualStyle }) {
   const isCircle = item.colSpan === 1 && item.rowSpan === 1;
   const isWide   = item.colSpan >= 2  && item.rowSpan === 1;
@@ -388,7 +435,6 @@ function ItemContent({ item, visualStyle }) {
   return null;
 }
 
-// ── شاشة اقتصاص الصورة — تدعم السحب بإصبع والتكبير بإصبعين ─────────────────
 function ImageCropper({ imgData, targetRatio, onCrop, onCancel, t, th, lang }) {
   const scaleRef        = useRef(1);
   const committedPosRef = useRef({ x: 0, y: 0 });
@@ -401,7 +447,6 @@ function ImageCropper({ imgData, targetRatio, onCrop, onCancel, t, th, lang }) {
   const [scaleDisplay, setScaleDisplay] = useState(1);
   const isRtl = lang === "ar";
 
-  // تطبيق التحويل على الصورة مباشرة عبر الـ ref بدون re-render
   const applyTransform = useCallback(() => {
     if (!imgRef.current) return;
     const px = dragRef.current ? dragRef.current.currentX : committedPosRef.current.x;
@@ -410,7 +455,6 @@ function ImageCropper({ imgData, targetRatio, onCrop, onCancel, t, th, lang }) {
       `translate(calc(-50% + ${px}px), calc(-50% + ${py}px)) scale(${scaleRef.current})`;
   }, []);
 
-  // جدولة التحديث في requestAnimationFrame لأداء أفضل
   const scheduleRaf = useCallback(() => {
     if (!rafRef.current) {
       rafRef.current = requestAnimationFrame(() => {
@@ -471,7 +515,6 @@ function ImageCropper({ imgData, targetRatio, onCrop, onCancel, t, th, lang }) {
     scheduleRaf();
   };
 
-  // تطبيق القص الفعلي — يرسم الجزء المرئي داخل إطار القص على canvas ويرجعه
   const applyCrop = useCallback(() => {
     if (!containerRef.current || !imgRef.current) return;
 
@@ -527,11 +570,9 @@ function ImageCropper({ imgData, targetRatio, onCrop, onCancel, t, th, lang }) {
         </button>
       </div>
 
-      {/* منطقة السحب والتكبير */}
       <div ref={areaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} style={{ flex:1, position:"relative", overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", touchAction:"none" }}>
         <img ref={imgRef} src={imgData} alt="" draggable={false} style={{ position:"absolute", left:"50%", top:"50%", transform:"translate(-50%, -50%) scale(1)", maxWidth:"100%", maxHeight:"100%", width:"auto", height:"auto", transformOrigin:"center center", willChange:"transform", userSelect:"none", WebkitUserSelect:"none", pointerEvents:"none" }} />
 
-        {/* إطار القص مع خطوط الشبكة وأركان ملونة */}
         <div ref={containerRef} style={{ position:"relative", width:"100%", maxWidth:"400px", maxHeight:"70vh", aspectRatio:String(targetRatio), pointerEvents:"none", zIndex:2, borderRadius:18, overflow:"hidden", boxShadow:"0 0 0 9999px rgba(0,0,0,0.72)" }}>
           <div style={{ position:"absolute", inset:0, border:"1px solid rgba(255,255,255,0.12)", borderRadius:18 }} />
           <div style={{ position:"absolute", top:0, left:0, width:38, height:38, borderTop:`3px solid ${th.accent}`, borderLeft:`3px solid ${th.accent}`, borderRadius:"18px 0 0 0", filter:`drop-shadow(0 0 8px ${th.accent})` }}/>
@@ -549,7 +590,6 @@ function ImageCropper({ imgData, targetRatio, onCrop, onCancel, t, th, lang }) {
         </div>
       </div>
 
-      {/* شريط التحكم بالتكبير */}
       <div style={{ padding:"18px 24px 30px", background:"rgba(20,22,28,0.82)", backdropFilter:"blur(30px)", WebkitBackdropFilter:"blur(30px)", borderTop:"1px solid rgba(255,255,255,0.06)", display:"flex", flexDirection:"column", gap:14, flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:14, flexDirection:isRtl ? "row-reverse" : "row" }}>
           <span style={{ background:"rgba(255,255,255,0.08)", color:"#fff", padding:"6px 10px", borderRadius:999, fontSize:12, fontWeight:700, minWidth:58, textAlign:"center" }}>
@@ -569,7 +609,6 @@ function ImageCropper({ imgData, targetRatio, onCrop, onCancel, t, th, lang }) {
   );
 }
 
-// ── مودال تعديل الكبسولة — اختيار الأيقونة وتغيير النص ─────────────────────
 function ConfigModal({ item, onSave, onClose, t, th, lang }) {
   const [cfg, setCfg]               = useState({ ...item });
   const [search, setSearch]         = useState("");
@@ -672,7 +711,6 @@ function ConfigModal({ item, onSave, onClose, t, th, lang }) {
   );
 }
 
-// ── قائمة خيارات المشروع المحفوظ — تعديل أو حذف ─────────────────────────────
 function ProjectMenu({ proj, onEdit, onDelete, onClose, t, th, lang }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { requestAnimationFrame(() => setMounted(true)); }, []);
@@ -738,7 +776,6 @@ function ProjectMenu({ proj, onEdit, onDelete, onClose, t, th, lang }) {
 // الكومبوننت الرئيسي للتطبيق
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
-  // ── الـ States الرئيسية ──────────────────────────────────────────────────────
   const [activeTab,      setActiveTab]      = useState("home");
   const [lang,           setLang]           = useState("ar");
   const [themeMode,      setThemeMode]      = useState("dark");
@@ -761,7 +798,6 @@ export default function App() {
   const [resizing,       setResizing]       = useState(null);
   const [longPressActive,setLongPressActive]= useState(null);
 
-  // ── الـ Refs — قيم تتغير بدون ما تسبب re-render ──────────────────────────────
   const dragRef         = useRef(null);
   const resizeRef       = useRef(null);
   const longPressTimer  = useRef(null);
@@ -770,17 +806,10 @@ export default function App() {
   const fileRef         = useRef(null);
   const tempNameRef     = useRef("");
 
-  // ── ref خاص لزر الرجوع — يحفظ آخر قيمة للـ states بدون ما يعيد تسجيل الـ listener ──
   const backStateRef = useRef({});
   useEffect(() => {
     backStateRef.current = {
-      pendingCropImg,
-      modalItem,
-      projMenuTarget,
-      showProjModal,
-      bg,
-      editMode,
-      activeTab,
+      pendingCropImg, modalItem, projMenuTarget, showProjModal, bg, editMode, activeTab,
     };
   });
 
@@ -790,7 +819,6 @@ export default function App() {
   const isRtl   = lang === "ar";
   const inProject = !!bg;
 
-  // ── تحميل المشاريع المحفوظة من الذاكرة المحلية عند فتح التطبيق ──────────────
   useEffect(() => {
     (async () => {
       try {
@@ -805,7 +833,6 @@ export default function App() {
     catch (e) { console.warn(e); }
   }, []);
 
-  // ── حفظ تلقائي عند كل تغيير في الـ layout أو الصورة ─────────────────────────
   useEffect(() => {
     if (!bg || !projectName) return;
     setSavedProjects(prev => {
@@ -818,12 +845,10 @@ export default function App() {
     });
   }, [layout, bg, projectName, visualStyle, saveProjectsToStorage]);
 
-  // ── زر الرجوع في الهاتف (Android Hardware Back Button) ─────────────────────
   useEffect(() => {
     let capacitorListener = null;
     let removePopState = null;
 
-    // معالج موحد عشان إجراءات زر الرجوع يحدد وش سيتم إغلاقه/الرجوع 
     const processBackAction = () => {
       const s = backStateRef.current;
       let handled = true;
@@ -860,22 +885,18 @@ export default function App() {
 
     const setupBackHandler = async () => {
       try {
-        // محاولة استخدام إضافة Capacitor لمعالجة زر الرجوع بشكل أصلي ومباشر مع الاندرويد
         const { App } = await import("@capacitor/app");
         capacitorListener = await App.addListener("backButton", () => {
           const handled = processBackAction();
-          // إذا لم يتم التقاط الحدث في التطبيق، نأمر التطبيق بالخروج
           if (!handled) {
             App.exitApp();
           }
         });
       } catch (e) {
-        // إذا لم تكن الإضافة موجودة، نستخدم نظام History API المدمج مع حلول لمنع الـ Infinite Loop
         window.history.pushState({ qp_internal: true }, "");
         const handlePopState = () => {
           const handled = processBackAction();
           if (handled) {
-            // دفع حالة جديدة للبقاء داخل التطبيق لالتقاط الضغطة القادمة لزر الرجوع
             window.history.pushState({ qp_internal: true }, "");
           }
         };
@@ -897,7 +918,6 @@ export default function App() {
     setTimeout(() => setToast(null), ms);
   }, []);
 
-  // ── حفظ لقطة من الـ layout للـ undo ─────────────────────────────────────────
   const snapshot = useCallback(() => setHistory(h => [...h.slice(-29), layout]), [layout]);
   const undo = () => setHistory(h => {
     if (!h.length) return h;
@@ -905,14 +925,12 @@ export default function App() {
     return h.slice(0, -1);
   });
 
-  // ── تبديل التبويب مع animation ───────────────────────────────────────────────
   const switchTab = useCallback((newTab) => {
     if (newTab === activeTab) return;
     setContentVisible(false);
     setTimeout(() => { setActiveTab(newTab); setContentVisible(true); }, 180);
   }, [activeTab]);
 
-  // ── معالجة رفع الصورة من المعرض ─────────────────────────────────────────────
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file || !file.type.startsWith("image/")) return;
@@ -931,7 +949,6 @@ export default function App() {
     e.target.value = "";
   };
 
-  // ── بعد اعتماد القص — ينتظر اكتمال تحميل الصورة قبل عرضها ──────────────────
   const handleCropComplete = useCallback((croppedDataUrl) => {
     const img = new Image();
     img.onload = () => {
@@ -947,7 +964,6 @@ export default function App() {
     img.src = croppedDataUrl;
   }, [showToast, t.uploadReady]);
 
-  // ── الرجوع للقائمة الرئيسية مع تصفير البيانات ───────────────────────────────
   const handleBack = () => {
     setContentVisible(false);
     setTimeout(() => {
@@ -957,7 +973,6 @@ export default function App() {
     }, 180);
   };
 
-  // ── تحميل مشروع محفوظ من القائمة ────────────────────────────────────────────
   const loadSavedProject = (proj) => {
     setProjectName(proj.name); setBg(proj.bg); setLayout(proj.layout);
     setVisualStyle(proj.visualStyle || "blurred");
@@ -968,7 +983,6 @@ export default function App() {
     setProjMenuTarget(null);
   };
 
-  // ── حذف مشروع محفوظ ──────────────────────────────────────────────────────────
   const deleteProject = (projName) => {
     setSavedProjects(prev => {
       const next = prev.filter(p => p.name !== projName);
@@ -979,20 +993,17 @@ export default function App() {
     showToast(t.deleteConfirm);
   };
 
-  // ── حساب حجم خطوة واحدة في الشبكة بالبكسل — يُستخدم في السحب والتكبير ───────
   const getStride = useCallback(() => {
     if (!gridRef.current) return 1;
     return (gridRef.current.getBoundingClientRect().width / totalW) * (CELL_EX + GAP_EX);
   }, [totalW]);
 
-  // ── إلغاء الضغط الطويل إذا تحرك الإصبع قبل الوقت المحدد ────────────────────
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     longPressStart.current = null;
     setLongPressActive(null);
   }, []);
 
-  // ── بداية لمس الكبسولة — ينتظر الضغط الطويل لبدء السحب ──────────────────────
   const onItemTouchStart = useCallback((e, item) => {
     if (!editMode || resizeRef.current || dragRef.current) return;
     if (e.target.closest("[data-edit-control]")) return;
@@ -1015,7 +1026,6 @@ export default function App() {
     }, LONG_PRESS_MS);
   }, [editMode, snapshot]);
 
-  // ── تحريك الإصبع — يحدث موضع الكبسولة أو حجمها ─────────────────────────────
   const onItemTouchMove = useCallback((e) => {
     const touch = e.touches[0];
     if (longPressStart.current && !dragRef.current) {
@@ -1055,14 +1065,12 @@ export default function App() {
     }
   }, [getStride, cancelLongPress]);
 
-  // ── رفع الإصبع — يوقف السحب أو التكبير ──────────────────────────────────────
   const onItemTouchEnd = useCallback(() => {
     cancelLongPress();
     if (dragRef.current)   { dragRef.current = null;   setDragging(null); }
     if (resizeRef.current) { resizeRef.current = null; setResizing(null); }
   }, [cancelLongPress]);
 
-  // ── بدء تغيير حجم الكبسولة بالماوس أو اللمس ────────────────────────────────
   const onResizePointerDown = useCallback((e, item) => {
     e.stopPropagation(); e.preventDefault();
     snapshot();
@@ -1074,7 +1082,6 @@ export default function App() {
     setResizing(item.id);
   }, [snapshot, layout]);
 
-  // ── تسجيل أحداث اللمس على مستوى الـ window ──────────────────────────────────
   useEffect(() => {
     const opts = { passive: false };
     window.addEventListener("touchmove", onItemTouchMove, opts);
@@ -1087,7 +1094,6 @@ export default function App() {
     };
   }, [onItemTouchMove, onItemTouchEnd]);
 
-  // ── تسجيل أحداث الماوس على مستوى الـ window — للتكبير بالسحب ────────────────
   useEffect(() => {
     const onMouseMove = (e) => {
       const rr = resizeRef.current; if (!rr) return;
@@ -1112,7 +1118,6 @@ export default function App() {
     return () => { window.removeEventListener("mousemove", onMouseMove); window.removeEventListener("mouseup", onMouseUp); };
   }, [getStride]);
 
-  // ── تصدير الصور ZIP ──────────────────────────────────────────────────────────
   const handleExport = async () => {
     if (!bgImg || editMode || generating) return;
     setGenerating(true);
@@ -1121,7 +1126,6 @@ export default function App() {
     setGenerating(false);
   };
 
-  // ── حساب style الـ wrapper للكبسولة — الموضع والحجم والانيميشن ───────────────
   const wrapperStyle = useCallback((item) => {
     const isDragging  = item.id === dragging;
     const isResizing  = item.id === resizing;
@@ -1152,7 +1156,6 @@ export default function App() {
     };
   }, [editMode, dragging, resizing, longPressActive, totalW, totalH]);
 
-  // ── حساب style الجزء الداخلي للكبسولة — الخلفية الضبابية والحدود ────────────
   const innerStyle = useCallback((item) => {
     const isDragging = item.id === dragging, isResizing = item.id === resizing;
     const isCircle = item.colSpan === 1 && item.rowSpan === 1;
@@ -1173,9 +1176,6 @@ export default function App() {
     };
   }, [editMode, dragging, resizing, th, visualStyle]);
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // الـ JSX — هيكل التطبيق الكامل
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight:"100dvh", background:th.bg, color:th.text,
       fontFamily:"'Segoe UI', system-ui, sans-serif",
@@ -1184,7 +1184,6 @@ export default function App() {
       direction:"ltr", overflowX:"hidden",
       transition:"background 0.4s ease, color 0.3s ease", position:"relative" }}>
 
-      {/* كرات الضوء المتحركة في الخلفية */}
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", overflow:"hidden", zIndex:0 }}>
         <div style={{ position:"absolute", width:600, height:600, borderRadius:"50%",
           background:`radial-gradient(circle, ${th.gradOrb1} 0%, transparent 70%)`,
@@ -1220,7 +1219,6 @@ export default function App() {
         ::-webkit-scrollbar{width:3px} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
       `}</style>
 
-      {/* إشعار Toast — يظهر أسفل الشاشة لفترة قصيرة */}
       {toast && (
         <div style={{ position:"fixed", bottom:100, left:"50%", transform:"translateX(-50%)",
           background: themeMode==="dark" ? "rgba(255,255,255,0.95)" : "rgba(30,24,20,0.92)",
@@ -1234,7 +1232,6 @@ export default function App() {
         </div>
       )}
 
-      {/* شاشة القص — تظهر فقط لما يكون في صورة منتظرة */}
       {pendingCropImg && (
         <ImageCropper
           imgData={pendingCropImg}
@@ -1245,7 +1242,6 @@ export default function App() {
         />
       )}
 
-      {/* المحتوى الرئيسي مع الدخول والخروج */}
       <div style={{ width:"100%", display:"flex", justifyContent:"center",
         opacity: contentVisible ? 1 : 0,
         transform: contentVisible ? "translateY(0) scale(1)" : "translateY(10px) scale(0.98)",
@@ -1254,8 +1250,6 @@ export default function App() {
 
         {activeTab === "home" ? (
           <div style={{ width:"100%", maxWidth:430 }}>
-
-            {/* زر الرجوع للقائمة — يظهر فقط داخل المشروع */}
             {inProject && (
               <button onClick={handleBack} className="tap-btn"
                 style={{ marginBottom:12, padding:"9px 16px", borderRadius:14,
@@ -1269,7 +1263,6 @@ export default function App() {
               </button>
             )}
 
-            {/* هيدر التطبيق */}
             {!inProject && (
             <div style={{ background:th.surface, backdropFilter:"blur(24px)",
               borderRadius:24, padding:"20px 22px", border:`1px solid ${th.border}`, marginBottom:14,
@@ -1286,28 +1279,39 @@ export default function App() {
 
             {!bg ? (
               <>
-                {/* زر بدء مشروع جديد */}
                 <div className="hover-halo" onClick={() => setShowProjModal(true)}
-                  style={{ padding:"24px 0", borderRadius:20, border:`2px dashed ${th.border}`,
+                  style={{ position: "relative",
+                    padding:"24px 0", borderRadius:20, border:`2px dashed ${th.border}`,
                     background:th.surface, backdropFilter:"blur(20px)",
                     display:"flex", flexDirection:"column", alignItems:"center", gap:8,
                     cursor:"pointer", marginBottom:14, boxShadow:"0 2px 16px rgba(0,0,0,0.12)",
                     animation:"fdIn 0.45s cubic-bezier(0.16,1,0.3,1)" }}>
+                  
+                  <TooltipButton 
+                    text={t.uploadinfo} 
+                    top={12} 
+                    left={isRtl ? 12 : undefined} 
+                    right={isRtl ? undefined : 12} 
+                  />
+
                   <span style={{ color:th.text, display:"flex" }}><SVGIcons.Folder /></span>
                   <span style={{ color:th.text, fontWeight:700, fontSize:13.5, direction: isRtl ? "rtl" : "ltr" }}>{t.uploadPrompt}</span>
                 </div>
 
-                {/* قائمة المشاريع المحفوظة */}
                 <div style={{ background:`linear-gradient(135deg,${th.surface},${th.accentGlow2})`,
                   backdropFilter:"blur(24px)", borderRadius:24, padding:"18px 20px",
                   border:`1px solid ${th.border}`, marginBottom:14,
                   boxShadow:`0 4px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05)`,
                   animation:"fdIn 0.5s cubic-bezier(0.16,1,0.3,1)" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14,
-                    flexDirection: isRtl ? "row-reverse" : "row" }}>
-                    <span style={{ fontSize:14, fontWeight:700, color:th.text, display:"flex", alignItems:"center", gap:6 }}>
-                      <SVGIcons.Projects /> {t.savedDashboard}
-                    </span>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexDirection: isRtl ? "row-reverse" : "row" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize:14, fontWeight:700, color:th.text, display:"flex", alignItems:"center", gap:6 }}>
+                        <SVGIcons.Projects /> {t.savedDashboard}
+                      </span>
+                      <div style={{ position: "relative", width: 22, height: 22 }}>
+                        <TooltipButton text={t.brojectinfo} top={0} left={0} />
+                      </div>
+                    </div>
                     <span style={{ fontSize:12, color:th.accent, fontWeight:600 }}>{t.viewAll} ({savedProjects.length})</span>
                   </div>
                   {savedProjects.length > 0 ? (
@@ -1332,7 +1336,6 @@ export default function App() {
                 </div>
               </>
             ) : (
-              /* شريط اسم المشروع الحالي */
               <div className="hover-halo" onClick={() => !editMode && setShowProjModal(true)}
                 style={{ padding:"16px 0", borderRadius:20, border:`2px dashed ${th.accent}`,
                   background:`${th.accent}15`, backdropFilter:"blur(20px)",
@@ -1348,17 +1351,19 @@ export default function App() {
 
             {bg && (
               <div style={{ animation:"fdIn 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
-                {/* شريط القص ونمط العرض */}
                 <div style={{ background:th.surface, backdropFilter:"blur(20px)", borderRadius:16,
                   padding:"10px 14px", border:`1px solid ${th.border}`, marginBottom:12,
                   display:"flex", justifyContent:"space-between", alignItems:"center",
                   boxShadow:"0 2px 14px rgba(0,0,0,0.12)", flexDirection: isRtl ? "row-reverse" : "row" }}>
-                  <button  className="tap-btn" onClick={() => fileRef.current?.click()}
-                    style={{ background: th.accent, border: `1px solid ${th.border}`, borderRadius: 24, padding: 20, color: th.text,
-                      display:"flex", alignItems:"center", gap:6, fontSize:13, fontWeight:600,
-                      cursor:"pointer", padding:"5px 10px", borderRadius:10 }}>
-                    <SVGIcons.Crop /> {t.cropBtn}
-                  </button>
+                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                    <button  className="tap-btn" onClick={() => fileRef.current?.click()}
+                      style={{ background: th.accent, border: `1px solid ${th.border}`, borderRadius: 24, padding: 20, color: th.text,
+                        display:"flex", alignItems:"center", gap:6, fontSize:13, fontWeight:600,
+                        cursor:"pointer", padding:"10px 14px", borderRadius:10 }}>
+                      <SVGIcons.Crop /> {t.cropBtn}
+                    </button>
+                    <TooltipButton text={t.resizeImage} top={-8} right={-8} />
+                  </div>
                   <div style={{ display:"flex", gap:6 }}>
                     <button className="style-btn" onClick={() => setVisualStyle("transparent")}
                       style={{ padding:"6px 14px", borderRadius:10, border:"none", fontSize:11.5, fontWeight:700, cursor:"pointer",
@@ -1375,18 +1380,20 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* شريط التعديل والـ undo */}
                 <div style={{ display:"flex", gap:8, marginBottom:14 }}>
-                  <button className="tap-btn" onClick={() => setEditMode(m => !m)}
-                    style={{ flex:1, padding:"12px 0", borderRadius:14,
-                      display:"flex", justifyContent:"center", alignItems:"center", gap:6,
-                      border:`1px solid ${editMode ? th.accent : th.border}`,
-                      background: editMode ? `${th.accent}28` : th.surface,
-                      backdropFilter:"blur(10px)",
-                      color: editMode ? th.accent : th.text, fontSize:13, fontWeight:700, cursor:"pointer",
-                      boxShadow: editMode ? `0 4px 18px ${th.accentGlow}` : "none" }}>
-                    {editMode ? <><SVGIcons.Check /> {t.editOn}</> : <><SVGIcons.Edit size={16}/> {t.editOff}</>}
-                  </button>
+                  <div style={{ flex: 1, position: "relative" }}>
+                    <button className="tap-btn" onClick={() => setEditMode(m => !m)}
+                      style={{ width: "100%", padding:"12px 0", borderRadius:14,
+                        display:"flex", justifyContent:"center", alignItems:"center", gap:6,
+                        border:`1px solid ${editMode ? th.accent : th.border}`,
+                        background: editMode ? `${th.accent}28` : th.surface,
+                        backdropFilter:"blur(10px)",
+                        color: editMode ? th.accent : th.text, fontSize:13, fontWeight:700, cursor:"pointer",
+                        boxShadow: editMode ? `0 4px 18px ${th.accentGlow}` : "none" }}>
+                      {editMode ? <><SVGIcons.Check /> {t.editOn}</> : <><SVGIcons.Edit size={16}/> {t.editOff}</>}
+                    </button>
+                    <TooltipButton text={t.editInfo} top={-8} right={isRtl ? undefined : -8} left={isRtl ? -8 : undefined} />
+                  </div>
                   {editMode && history.length > 0 && (
                     <button className="tap-btn" onClick={undo}
                       style={{ padding:"12px 16px", borderRadius:14, border:`1px solid ${th.border}`,
@@ -1399,7 +1406,6 @@ export default function App() {
                   )}
                 </div>
 
-                {/* تلميح السحب والتكبير — يظهر فقط في وضع التعديل */}
                 {editMode && (
                   <div style={{ textAlign:"center", color:th.accent, fontSize:11, fontWeight:600,
                     display:"flex", justifyContent:"center", alignItems:"center", gap:6,
@@ -1410,32 +1416,24 @@ export default function App() {
                   </div>
                 )}
 
-                {/* الشبكة الرئيسية — الصورة + الكبسولات */}
                 <div ref={gridRef}
                   style={{ position:"relative", width:"100%", aspectRatio:`${totalW}/${totalH}`,
                     borderRadius:28, background:"#111",
                     boxShadow:`0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)`,
                     direction:"rtl", touchAction:"pan-y", overflow:"hidden" }}>
-
-                  {/* الصورة الخلفية — تبهت في وضع التعديل */}
                   <img src={bg} alt=""
                     style={{ position:"absolute", inset:0, width:"100%", height:"100%",
                       objectFit:"cover", objectPosition:"center",
                       opacity: editMode ? 0.28 : 1, transition:"opacity .4s ease",
                       pointerEvents:"none", userSelect:"none" }}/>
-
                   {editMode && <div style={{ position:"absolute", inset:0, background:"rgba(10,10,20,0.18)", pointerEvents:"none", zIndex:0 }}/>}
-
-                  {/* رسم كل كبسولة */}
                   {layout.map(item => (
                     <div key={item.id} style={wrapperStyle(item)} onTouchStart={e => onItemTouchStart(e, item)}>
                       <div style={innerStyle(item)}>
                         <ItemContent item={item} visualStyle={visualStyle}/>
                       </div>
-                      {/* أزرار التحكم — تظهر فقط في وضع التعديل */}
                       {editMode && (
                         <>
-                          {/* زر الحذف — أحمر أعلى اليسار */}
                           <div data-edit-control="true"
                             style={{ position:"absolute", top:-1, left:-1, width:24, height:24,
                               borderRadius:"50%", background:th.danger,
@@ -1446,7 +1444,6 @@ export default function App() {
                             onClick={e => { e.stopPropagation(); snapshot(); setLayout(p => p.filter(i => i.id !== item.id)); }}>
                             <div style={{ width:10, height:2, background:"white", borderRadius:1 }}/>
                           </div>
-                          {/* زر التعديل — رمادي أعلى اليمين */}
                           <div data-edit-control="true"
                             style={{ position:"absolute", top:-1, right:-1, width:26, height:26,
                               borderRadius:"50%", background:"rgba(40,40,50,0.95)",
@@ -1458,7 +1455,6 @@ export default function App() {
                             onClick={e => { e.stopPropagation(); setModalItem(item); }}>
                             <SVGIcons.Edit size={12}/>
                           </div>
-                          {/* زر التكبير — برتقالي أسفل اليمين */}
                           <div data-edit-control="true"
                             style={{ position:"absolute", bottom:-4, right:-4, width:34, height:34,
                               background:th.accent, borderRadius:"50%",
@@ -1468,7 +1464,7 @@ export default function App() {
                               animation:"popIn 0.3s cubic-bezier(0.34,1.56,0.64,1) 0.1s both" }}
                             onTouchStart={e => { e.stopPropagation(); onResizePointerDown({ clientX:e.touches[0].clientX, clientY:e.touches[0].clientY, stopPropagation:()=>{}, preventDefault:()=>{} }, item); }}
                             onMouseDown={e => onResizePointerDown(e, item)}>
-                            <div style={{ width:12, height:12, borderRight:"3px solid white", borderBottom:"3px solid white", transform:"translate(-2px,-2px)" }}/>
+                            <div style={{ width:14, height:14, borderRadius:"30%", borderRight:"5px solid white", borderBottom:"5px solid white", transform:"translate(-2px,-2px)" }}/>
                           </div>
                         </>
                       )}
@@ -1476,7 +1472,6 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* زر إضافة كبسولة جديدة — يظهر فقط في وضع التعديل */}
                 {editMode && (
                   <div style={{ display:"flex", justifyContent:"center", marginTop:14, animation:"popIn .3s cubic-bezier(0.34,1.56,0.64,1)" }}>
                     <button className="tap-btn"
@@ -1490,7 +1485,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* زر التصدير */}
                 <button className="tap-btn" onClick={handleExport} disabled={generating || editMode || !bgImg}
                   style={{ marginTop: editMode ? 14 : 22, width:"100%", padding:16, borderRadius:18,
                     display:"flex", justifyContent:"center", alignItems:"center", gap:10,
@@ -1511,7 +1505,6 @@ export default function App() {
             )}
           </div>
         ) : (
-          // ── صفحة الإعدادات ──────────────────────────────────────────────────
           <div style={{ width:"100%", maxWidth:430, display:"flex", flexDirection:"column", gap:16 }}>
             <div style={{ background:th.surface, backdropFilter:"blur(24px)", borderRadius:24, padding:"24px",
               border:`1px solid ${th.border}`,
@@ -1519,12 +1512,16 @@ export default function App() {
               animation:"fdIn 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
               <h2 style={{ margin:"0 0 20px", fontSize:22, color:th.text,
                 display:"flex", justifyContent:"center", alignItems:"center", gap:8, direction: isRtl ? "rtl" : "ltr" }}>
-                <SVGIcons.Settings /> {t.settings}
+                {t.settings}
               </h2>
               <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
-                {/* إعداد اللغة */}
                 <div>
-                  <label style={{ fontSize:13, color:th.textMuted, marginBottom:8, display:"block", textAlign: isRtl ? "right" : "left" }}>{t.lang}</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexDirection: isRtl ? "row-reverse" : "row" }}>
+                    <label style={{ fontSize: 13, color: th.textMuted, margin: 0 }}>{t.lang}</label>
+                    <div style={{ position: "relative", width: 26, height: 26 }}>
+                      <TooltipButton text={t.langinfo} top={0} left={0} />
+                    </div>
+                  </div>
                   <div style={{ display:"flex", gap:8 }}>
                     <button className="tap-btn" onClick={() => setLang("ar")}
                       style={{ flex:1, padding:13, borderRadius:13, cursor:"pointer",
@@ -1542,9 +1539,13 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                {/* إعداد الثيم */}
                 <div>
-                  <label style={{ fontSize:13, color:th.textMuted, marginBottom:8, display:"block", textAlign: isRtl ? "right" : "left" }}>{t.themeMode}</label>
+                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexDirection: isRtl ? "row-reverse" : "row" }}>
+                      <label style={{ fontSize: 13, color: th.textMuted, margin: 0 }}>{t.themeMode}</label>
+                      <div style={{ position: "relative", width: 26, height: 26 }}>
+                        <TooltipButton text={t.themeinfo} top={0} left={0} />
+                      </div>
+                   </div>
                   <div style={{ display:"flex", gap:8 }}>
                     <button className="tap-btn" onClick={() => setThemeMode("dark")}
                       style={{ flex:1, padding:13, borderRadius:13, cursor:"pointer",
@@ -1566,41 +1567,27 @@ export default function App() {
                 </div>
               </div>
             </div>
-
-            {/* قسم التواصل */}
             <div style={{background: th.surface, border: `1px solid ${th.border}`, borderRadius: 24, padding: 20, color: th.text }}>
-              <h3 style={{ marginTop: 0, marginBottom: 20, textAlign: "center" }}>
-                 {t.contact}
-              </h3>
+              <h3 style={{ marginTop: 0, marginBottom: 20, textAlign: "center" }}>{t.contact}</h3>
               <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
                 <div>
                   <div style={{ fontSize:14, color:th.textMuted }}>{t.Email}</div>
-                  <a href="mailto:ibrah.aladwani@gmail.com" style={{ fontSize:15, color:th.accent, textDecoration:"underline" }}>
-                    ibrah.aladwani@gmail.com
-                  </a>
+                  <a href="mailto:ibrah.aladwani@gmail.com" style={{ fontSize:15, color:th.accent, textDecoration:"underline" }}>ibrah.aladwani@gmail.com</a>
                 </div>
                 <div>
                   <div style={{ fontSize:14, color:th.textMuted }}>{t.Twetter}</div>
-                  <a href="https://x.com/Ibrahim_312i" target="_blank" rel="noopener noreferrer" style={{ fontSize:15, color:th.accent, textDecoration:"none" }}>
-                    @Ibrahim_312i
-                  </a>
+                  <a href="https://x.com/Ibrahim_312i" target="_blank" rel="noopener noreferrer" style={{ fontSize:15, color:th.accent, textDecoration:"none" }}>@Ibrahim_312i</a>
                 </div>
                 <div>
                   <div style={{ fontSize:14, color:th.textMuted }}>{t.Instagram}</div>
-                  <a href="https://www.instagram.com/ibrah_hi_m" target="_blank" rel="noopener noreferrer" style={{ fontSize:15, color:th.accent, textDecoration:"none" }}>
-                    @ibrah_hi_m
-                  </a>
+                  <a href="https://www.instagram.com/ibrah_hi_m" target="_blank" rel="noopener noreferrer" style={{ fontSize:15, color:th.accent, textDecoration:"none" }}>@ibrah_hi_m</a>
                 </div>
                 <div>
                   <div style={{ fontSize:14, color:th.textMuted }}>{t.telgram}</div>
-                  <a href="https://t.me/+oxm3eU42ja44ZDBk" target="_blank" rel="noopener noreferrer" style={{ fontSize:15, color:th.accent, textDecoration:"none" }}>
-                    My quick panel & more
-                  </a>
+                  <a href="https://t.me/+oxm3eU42ja44ZDBk" target="_blank" rel="noopener noreferrer" style={{ fontSize:15, color:th.accent, textDecoration:"none" }}>My quick panel & more</a>
                 </div>
               </div>
             </div>
-
-            {/* معلومات المطور */}
             <div style={{ textAlign:"center", marginTop:16, opacity:0.55, animation:"fdIn 0.5s cubic-bezier(0.16,1,0.3,1)" }}>
               <p style={{ margin:5, fontSize:14, color:th.text }}>{t.devCredit}</p>
               <p style={{ margin:5, fontSize:12, color:th.textMuted }}>{t.rights}</p>
@@ -1609,7 +1596,6 @@ export default function App() {
         )}
       </div>
 
-      {/* الـ Bottom Navigation — يختفي داخل المشروع */}
       {!inProject && (
         <div style={{ position:"fixed", bottom:24, display:"flex",
           background:th.navBg, backdropFilter:"blur(28px) saturate(1.5)",
@@ -1640,7 +1626,6 @@ export default function App() {
         </div>
       )}
 
-      {/* مودال إدخال اسم المشروع */}
       {showProjModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:9999,
           display:"flex", alignItems:"center", justifyContent:"center", padding:20,
@@ -1678,10 +1663,8 @@ export default function App() {
         </div>
       )}
 
-      {/* input الملف المخفي — يُفعَّل برمجياً */}
       <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleFileChange}/>
 
-      {/* قائمة خيارات المشروع المحفوظ */}
       {projMenuTarget && (
         <ProjectMenu
           proj={projMenuTarget}
@@ -1692,7 +1675,6 @@ export default function App() {
         />
       )}
 
-      {/* مودال تعديل الكبسولة */}
       {modalItem && (
         <ConfigModal item={modalItem}
           onSave={cfg => { setLayout(p => p.map(i => i.id === cfg.id ? cfg : i)); setModalItem(null); showToast(t.toastSaved); }}
