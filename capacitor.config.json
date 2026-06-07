@@ -1,0 +1,10 @@
+{
+  "appId": "com.yourapp.id",
+  "appName": "my panel pro",
+  "webDir": "dist",
+  "plugins": {
+    "Filesystem": {
+      "iosScheme": "ionic"
+    }
+  }
+}
